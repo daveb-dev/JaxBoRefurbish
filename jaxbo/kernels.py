@@ -1,6 +1,7 @@
 
 import jax.numpy as np
 from jax import jit
+from jax import lax
 
 @jit
 def RBF(x1, x2, params):
@@ -9,6 +10,15 @@ def RBF(x1, x2, params):
     diffs = np.expand_dims(x1 / lengthscales, 1) - \
             np.expand_dims(x2 / lengthscales, 0)
     r2 = np.sum(diffs**2, axis=2)
+    return output_scale * np.exp(-0.5 * r2)
+
+@jit
+def RBF_frac(x1, x2, params):
+    output_scale = params[0]
+    lengthscales = params[1:]
+    diffs = np.expand_dims(x1 / lengthscales, 1) - \
+            np.expand_dims(x2 / lengthscales, 0)
+    r2 = np.sum(lax.pow(lax.abs(diffs),0.2) , axis=2)
     return output_scale * np.exp(-0.5 * r2)
 
 @jit
