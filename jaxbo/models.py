@@ -29,6 +29,8 @@ class GPmodel():
             self.kernel = kernels.Matern52
         elif options['kernel'] == 'Matern32':
             self.kernel = kernels.Matern32
+        if options['kernel'] == 'RBF_frac':
+            self.kernel = kernels.RBF_frac
         elif options['kernel'] == None:
             self.kernel = kernels.RBF
         else:
