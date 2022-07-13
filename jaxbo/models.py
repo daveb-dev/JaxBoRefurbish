@@ -287,7 +287,61 @@ class ManifoldGP(GPmodel):
         best_params = params[idx_best,:]
 
         return best_params
+    
+        def train_optax(self, batch, rng_key, num_restarts = 10,learning_rate=1e-2):
+        try:
+            import optax
+            
+            # Construct a simple Adam optimiser using the transforms in optax.
+            # You could also just use the `optax.adam` alias, but we show here how
+            # to do so manually so that you may construct your own `custom` optimiser.
+            tx = optax.chain(
+                  # Set the parameters of Adam. Note the learning_rate is not here.
+                  optax.scale_by_adam(b1=0.9, b2=0.999, eps=1e-8),
+                  # Put a minus sign to *minimise* the loss.
+                  optax.scale(-learning_rate)
+            )
+            # Define objective that returns NumPy arrays
+            def objective(params):
+                value, grads = self.likelihood_value_and_grad(params, batch)
+                out = (onp.array(value), onp.array(grads))
+                return out
+            # Optimize with random restarts
+            params = []
+            likelihood = []
+            dim = batch['X'].shape[1]
+            rng_key = random.split(rng_key, num_restarts)
+            # Create optimiser state.
+            for i in range(num_restarts):
+                ksample, knoise = random.split(rng_key[i])
+                gp_params = initializers.random_init_GP(ksample, dim)
+                nn_params = self.net_init(knoise,  (-1, self.layers[0]))[1]
+                init_params = np.concatenate([gp_params, ravel_pytree(nn_params)[0]])
+                opt_state = tx.init(init_params)
+                for step in range(0, n_training_steps):
+                      loss, grads = objective(init_params)
+                      updates, opt_state = tx.update(grads, opt_state)                      
+                      # Update the parameters.
+                      params = optax.apply_updates(init_param, updates)
+                      # opt_state is the value ? I revaluate it
+                      print(f'Loss[{step}] = {loss}')
+                      _, likehood = objective(init_param)
+                      params.append(init_param)
+                      likehood.append(likehood)                
+            params = np.vstack(params)
+            likelihood = np.vstack(likelihood)
+            #### find the best likelihood besides nan , evalutation of likehood in the param ####
+            bestlikelihood = np.nanmin(likelihood)
+            idx_best = np.where(likelihood == bestlikelihood)
+            idx_best = idx_best[0][0]
+            best_params = params[idx_best,:]
 
+            return best_params
+        
+        except RuntimeError:
+            pass
+        
+    
     @partial(jit, static_argnums=(0,))
     def predict(self, X_star, **kwargs):
         params = kwargs['params']
